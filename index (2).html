@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analisis Iklim Harian Indonesia — SCR Framework</title>
+<meta name="description" content="Visualisasi data klimatologi harian BMKG (2015–2020) menggunakan framework Situation–Complication–Resolution.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+    :root {
+        /* === Token sistem warna: siklus atmosfer harian === */
+        --atmosphere-1: #0a1929;     /* langit malam — header & footer */
+        --atmosphere-2: #16324f;     /* langit subuh — gradient kedua */
+        --mist: #f3f7fb;             /* langit siang — bg halaman */
+        --panel: #ffffff;            /* kartu/panel */
+        --ink: #0d1b2a;              /* teks utama */
+        --ink-soft: #4a5d72;         /* teks sekunder */
+        --line-soft: #dfe7ef;        /* garis pembatas tipis */
+
+        --monsoon: #1f6feb;          /* SITUATION — biru stabil/baseline */
+        --monsoon-tint: #eaf2ff;
+        --storm: #e0432b;            /* COMPLICATION — merah anomali/alarm */
+        --storm-tint: #fdeeec;
+        --solar: #d9790a;            /* RESOLUTION — jingga matahari/mitigasi */
+        --solar-tint: #fdf1e2;
+
+        --radius-lg: 20px;
+        --radius-md: 14px;
+        --font-display: 'Space Grotesk', sans-serif;
+        --font-body: 'Inter', system-ui, sans-serif;
+        --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+        font-family: var(--font-body);
+        background-color: var(--mist);
+        color: var(--ink);
+        line-height: 1.65;
+    }
+
+    a { color: inherit; }
+    img, svg { display: block; max-width: 100%; }
+
+    .visually-hidden {
+        position: absolute; width: 1px; height: 1px;
+        overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap;
+    }
+
+    /* ============ SKIP LINK / FOCUS ============ */
+    a:focus-visible, button:focus-visible {
+        outline: 3px solid var(--monsoon);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    /* ============ NAV ============ */
+    .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.85rem 1.5rem;
+        background: rgba(10, 25, 41, 0.92);
+        backdrop-filter: blur(8px);
+        color: #e7edf5;
+    }
+
+    .topnav .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.95rem;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+    }
+
+    .topnav .brand svg { width: 20px; height: 20px; color: #7fb2ff; }
+
+    .topnav .stage-links {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .topnav .stage-links a {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        font-family: var(--font-mono);
+        font-size: 0.75rem;
+        letter-spacing: 0.03em;
+        padding: 0.4rem 0.75rem;
+        border-radius: 30px;
+        border: 1px solid rgba(255,255,255,0.18);
+        color: #cbd8e6;
+        transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    }
+    .topnav .stage-links a:hover { color: #fff; border-color: rgba(255,255,255,0.4); }
+    .topnav .stage-links a .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-situation { background: #7fb2ff; }
+    .dot-complication { background: #ff8a73; }
+    .dot-resolution { background: #ffc169; }
+
+    /* ============ HEADER / HERO ============ */
+    header.hero {
+        position: relative;
+        background: linear-gradient(160deg, var(--atmosphere-1) 0%, var(--atmosphere-2) 55%, #1d3f5e 100%);
+        color: #fff;
+        padding: 3.5rem 1.5rem 2.5rem;
+        overflow: hidden;
+    }
+
+    header.hero::before {
+        /* tekstur isobar halus */
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+            repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 28px);
+        pointer-events: none;
+    }
+
+    .hero-inner {
+        position: relative;
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .hero-eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #9fc4ff;
+        background: rgba(127, 178, 255, 0.12);
+        border: 1px solid rgba(127, 178, 255, 0.3);
+        padding: 0.35rem 0.85rem;
+        border-radius: 30px;
+        margin-bottom: 1.25rem;
+    }
+
+    .hero h1 {
+        font-family: var(--font-display);
+        font-weight: 700;
+        font-size: clamp(1.9rem, 4vw, 3rem);
+        letter-spacing: -0.03em;
+        max-width: 18ch;
+        margin-bottom: 0.9rem;
+    }
+
+    .hero p.lede {
+        font-size: 1.05rem;
+        color: #b9c9da;
+        max-width: 56ch;
+        margin-bottom: 2.25rem;
+    }
+
+    /* ---- signature chart: garis tren yang menceritakan SCR ---- */
+    .signature-chart {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: var(--radius-lg);
+        padding: 1.5rem 1.5rem 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .signature-chart .chart-caption {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: #93a6bb;
+        letter-spacing: 0.03em;
+        margin-bottom: 0.75rem;
+    }
+
+    .trend-path {
+        fill: none;
+        stroke: #cfe0f7;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-dasharray: 2000;
+        stroke-dashoffset: 2000;
+        animation: draw-line 2.6s ease-out 0.2s forwards;
+    }
+    .marker-pulse { animation: pulse-fade 2.4s ease-in 1.4s forwards; opacity: 0; }
+
+    @keyframes draw-line { to { stroke-dashoffset: 0; } }
+    @keyframes pulse-fade { to { opacity: 1; } }
+
+    @media (prefers-reduced-motion: reduce) {
+        .trend-path { animation: none; stroke-dashoffset: 0; }
+        .marker-pulse { animation: none; opacity: 1; }
+    }
+
+    .chart-zone-labels {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-top: 0.5rem;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+    }
+    .chart-zone-labels span { display: flex; align-items: center; gap: 0.4rem; color: #cbd8e6; }
+    .chart-zone-labels .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ---- readout strip: statistik dataset ala instrumen stasiun cuaca ---- */
+    .readout-strip {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+    }
+
+    .readout-item {
+        background: rgba(255,255,255,0.03);
+        padding: 0.95rem 1.1rem;
+        display: flex;
+        align-items: flex-start;
+        gap: 0.65rem;
+    }
+
+    .readout-item svg { width: 18px; height: 18px; color: #8fb8e8; flex-shrink: 0; margin-top: 2px; }
+
+    .readout-item .ri-label {
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #93a6bb;
+        margin-bottom: 0.2rem;
+    }
+    .readout-item .ri-value { font-size: 0.85rem; color: #eef3f9; font-weight: 500; }
+
+    @media (max-width: 860px) {
+        .readout-strip { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* ============ MAIN CONTAINER ============ */
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 1.5rem; }
+    main { padding-top: 3rem; padding-bottom: 1rem; }
+
+    .scr-section {
+        background: var(--panel);
+        border-radius: var(--radius-lg);
+        padding: 2.25rem 2.25rem 2.5rem;
+        margin-bottom: 3rem;
+        border: 1px solid var(--line-soft);
+        box-shadow: 0 14px 32px -18px rgba(13, 27, 42, 0.18);
+        scroll-margin-top: 5.5rem;
+    }
+
+    .section-head {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        margin-bottom: 1.4rem;
+        flex-wrap: wrap;
+    }
+
+    .stage-icon {
+        width: 44px; height: 44px;
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+    }
+    .stage-icon svg { width: 24px; height: 24px; }
+
+    .scr-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #fff;
+        padding: 0.3rem 0.85rem;
+        border-radius: 30px;
+        font-family: var(--font-mono);
+        font-weight: 600;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .situation .stage-icon { background: var(--monsoon-tint); color: var(--monsoon); }
+    .situation .scr-badge { background-color: var(--monsoon); }
+    .complication .stage-icon { background: var(--storm-tint); color: var(--storm); }
+    .complication .scr-badge { background-color: var(--storm); }
+    .resolution .stage-icon { background: var(--solar-tint); color: var(--solar); }
+    .resolution .scr-badge { background-color: var(--solar); }
+
+    .section-title {
+        font-family: var(--font-display);
+        font-size: clamp(1.25rem, 2.2vw, 1.6rem);
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: -0.02em;
+        flex-basis: 100%;
+    }
+
+    .content-layout {
+        display: flex;
+        flex-direction: row;
+        gap: 2rem;
+        align-items: flex-start;
+    }
+
+    .narasi-column {
+        flex: 1;
+        min-width: 300px;
+        padding: 1.6rem 1.6rem 1.5rem;
+        border-radius: var(--radius-md);
+        border-left: 4px solid var(--monsoon);
+        background: var(--monsoon-tint);
+    }
+    .complication .narasi-column { border-left-color: var(--storm); background: var(--storm-tint); }
+    .resolution .narasi-column { border-left-color: var(--solar); background: var(--solar-tint); }
+
+    .narasi-column h3 {
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--ink-soft);
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+    }
+
+    .narasi-column p {
+        font-size: 0.94rem;
+        color: var(--ink-soft);
+        margin-bottom: 1rem;
+    }
+
+    .narasi-column ul { list-style: none; }
+
+    .narasi-column li {
+        position: relative;
+        padding-left: 1.3rem;
+        margin-bottom: 0.65rem;
+        font-size: 0.94rem;
+        color: var(--ink-soft);
+    }
+    .narasi-column li::before {
+        content: "";
+        position: absolute;
+        left: 0; top: 0.5em;
+        width: 7px; height: 7px;
+        border-radius: 50%;
+        background: var(--monsoon);
+    }
+    .complication .narasi-column li::before { background: var(--storm); }
+    .resolution .narasi-column li::before { background: var(--solar); }
+
+    .visual-column { flex: 1.7; min-width: 0; }
+
+    .viz-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 0.6rem;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--ink-soft);
+        flex-wrap: wrap;
+    }
+    .viz-toolbar .src-tag { display: flex; align-items: center; gap: 0.4rem; }
+    .viz-toolbar .src-tag svg { width: 14px; height: 14px; }
+    .viz-toolbar a.viz-link {
+        text-decoration: none;
+        font-weight: 600;
+        color: var(--ink);
+        border-bottom: 1px solid currentColor;
+        padding-bottom: 1px;
+    }
+
+    .tableau-wrapper {
+        background: #ffffff;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--radius-md);
+        min-height: 650px;
+        overflow: hidden;
+        box-shadow: inset 0 2px 6px rgba(13, 27, 42, 0.03);
+    }
+
+    .panel-caption {
+        margin-top: 0.85rem;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+        background: var(--mist);
+        border: 1px solid var(--line-soft);
+        border-radius: 10px;
+        padding: 0.65rem 0.85rem;
+    }
+    .panel-caption svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--ink-soft); }
+
+    @media (max-width: 960px) {
+        .content-layout { flex-direction: column; }
+        .narasi-column { width: 100%; min-width: unset; }
+        .topnav { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ============ FOOTER ============ */
+    footer {
+        background: linear-gradient(160deg, #0c2032 0%, var(--atmosphere-1) 100%);
+        color: #c7d4e3;
+        padding: 3rem 1.5rem 2.5rem;
+        margin-top: 1rem;
+    }
+
+    .footer-inner {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 2rem;
+    }
+
+    .footer-col h4 {
+        font-family: var(--font-display);
+        font-size: 0.95rem;
+        color: #fff;
+        margin-bottom: 0.85rem;
+    }
+    .footer-col p, .footer-col li { font-size: 0.85rem; color: #9fb0c4; margin-bottom: 0.45rem; }
+    .footer-col ul { list-style: none; }
+
+    .footer-links { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .footer-links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        text-decoration: none;
+        font-family: var(--font-mono);
+        font-size: 0.78rem;
+        color: #e7edf5;
+        background: rgba(255,255,255,0.07);
+        border: 1px solid rgba(255,255,255,0.14);
+        padding: 0.5rem 0.9rem;
+        border-radius: 30px;
+        transition: background 0.2s ease;
+    }
+    .footer-links a:hover { background: rgba(255,255,255,0.15); }
+    .footer-links svg { width: 15px; height: 15px; }
+
+    .footer-bottom {
+        max-width: 1180px;
+        margin: 2.5rem auto 0;
+        padding-top: 1.5rem;
+        border-top: 1px solid rgba(255,255,255,0.08);
+        font-size: 0.78rem;
+        color: #7e91a8;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+    <div class="brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2M19 12h2M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4"/><circle cx="12" cy="12" r="4"/></svg>
+        <span>Iklim Harian BMKG &middot; SCR</span>
+    </div>
+    <div class="stage-links">
+        <a href="#situation"><span class="dot dot-situation"></span>Situation</a>
+        <a href="#complication"><span class="dot dot-complication"></span>Complication</a>
+        <a href="#resolution"><span class="dot dot-resolution"></span>Resolution</a>
+    </div>
+</nav>
+
+<header class="hero">
+    <div class="hero-inner">
+        <span class="hero-eyebrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0z"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></svg>
+            Evaluasi Akhir Semester &middot; Data Visualisasi 
+        </span>
+        <h1>Membaca Pola, Anomali, dan Mitigasi Iklim Harian Indonesia</h1>
+        <p class="lede">Satu alur garis di bawah ini merangkum seluruh cerita: suhu tropis yang stabil, lonjakan anomali yang memicu kewaspadaan, lalu titik tindakan mitigasi berbasis data.</p>
+
+        <div class="signature-chart">
+            <div class="chart-caption">// trend_tavg_2015_2020.read() — ilustrasi alur narasi, bukan plot data mentah</div>
+            <svg viewBox="0 0 1200 260" aria-hidden="true">
+                <path class="trend-path" d="M0,165 C60,150 120,178 180,160 C240,145 300,172 360,158 C420,148 480,170 540,160 C600,150 660,168 720,158 C760,152 800,150 830,140 C852,122 862,90 878,66 C892,46 902,42 912,55 C924,72 932,96 944,120 C958,148 978,164 1008,158 C1058,148 1110,151 1160,143 L1198,140" />
+                <circle class="marker-pulse" cx="180" cy="160" r="5" fill="#7fb2ff" />
+                <circle class="marker-pulse" cx="885" cy="63" r="6" fill="#ff7a5c" />
+                <circle class="marker-pulse" cx="1198" cy="140" r="6" fill="#ffc169" />
+            </svg>
+            <div class="chart-zone-labels">
+                <span><span class="sw" style="background:#7fb2ff"></span>Situation — suhu stabil 26–27°C</span>
+                <span><span class="sw" style="background:#ff7a5c"></span>Complication — anomali &amp; ekstrem</span>
+                <span><span class="sw" style="background:#ffc169"></span>Resolution — titik mitigasi</span>
+            </div>
+        </div>
+
+        <div class="readout-strip">
+            <div class="readout-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="14" rx="3"/><path d="M9 16a3 3 0 1 0 6 0"/></svg>
+                <div><div class="ri-label">Periode data</div><div class="ri-value">2015 – 2020</div></div>
+            </div>
+            <div class="readout-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7s6 6.6 6 11a6 6 0 1 1-12 0c0-4.4 6-11 6-11z"/></svg>
+                <div><div class="ri-label">Parameter</div><div class="ri-value">Tn · Tx · Tavg · RH_avg · RR · ss</div></div>
+            </div>
+            <div class="readout-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a8 8 0 0 1 16 0"/><path d="M7.5 13.5a4.5 4.5 0 0 1 9 0"/><circle cx="12" cy="17" r="1.4"/><path d="M12 18.4V21"/></svg>
+                <div><div class="ri-label">Sumber</div><div class="ri-value">BMKG via Kaggle — Climate Data Daily IDN</div></div>
+            </div>
+            <div class="readout-item">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.5 11 11l-1.5 3.5L13 13l1.5-3.5z"/></svg>
+                <div><div class="ri-label">Framework</div><div class="ri-value">Situation – Complication – Resolution</div></div>
+            </div>
+        </div>
+    </div>
+</header>
+
+<main class="container">
+
+    <!-- SECTION 1: SITUATION -->
+    <section class="scr-section situation" id="situation">
+        <div class="section-head">
+            <span class="stage-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/></svg>
+            </span>
+            <span class="scr-badge">Situation</span>
+            <h2 class="section-title">1. Profil Umum &amp; Tren Normal Kondisi Iklim Harian (2015–2020)</h2>
+        </div>
+
+        <div class="content-layout">
+            <div class="narasi-column">
+                <h3>Why It Matters</h3>
+                <p>Memahami profil dasar (baseline) dari kondisi iklim normal merupakan landasan krusial sebelum mengidentifikasi anomali bencana. Visualisasi ini memetakan stabilitas rata-rata iklim harian Indonesia sebagai titik acuan.</p>
+                <p><strong>Highlight Temuan:</strong></p>
+                <ul>
+                    <li><em>Time-series line chart</em> menunjukkan pergerakan suhu rata-rata (Tavg) harian yang berada pada koridor stabil khas wilayah tropis sepanjang 2015–2020.</li>
+                    <li>Intensitas durasi sinar matahari mengonfirmasi ketersediaan energi surya yang relatif konstan dan melimpah sepanjang tahun.</li>
+                </ul>
+            </div>
+            <div class="visual-column">
+                <div class="viz-toolbar">
+                    <span class="src-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                        Dashboard 1 — Tableau Public
+                    </span>
+                    <!-- TODO: ganti href dengan tautan profil Tableau Public asli -->
+                    <a class="viz-link" href="#" target="_blank" rel="noopener">Buka layar penuh ↗</a>
+                </div>
+                <div class="tableau-wrapper">
+                    <div class='tableauPlaceholder' id='viz_dash1' style='position: relative; width: 100%;'><noscript><a href='#'><img alt='Dashboard 1 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard1&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz' style='display:none; width: 100%;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard1' /><param name='tabs' value='yes' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard1&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /></object></div><script type='text/javascript'>var divElement = document.getElementById('viz_dash1'); var vizElement = divElement.getElementsByTagName('object')[0]; vizElement.style.width='100%'; vizElement.style.minHeight='650px'; var scriptElement = document.createElement('script'); scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js'; vizElement.parentNode.insertBefore(scriptElement, vizElement);</script>
+                </div>
+                <div class="panel-caption">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+                    Grafik menunjukkan stabilitas suhu tropis rata-rata tahunan Indonesia berada di kisaran 26–27°C.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 2: COMPLICATION -->
+    <section class="scr-section complication" id="complication">
+        <div class="section-head">
+            <span class="stage-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 2.6 18a1.8 1.8 0 0 0 1.6 2.6h15.6a1.8 1.8 0 0 0 1.6-2.6L13.7 3.9a1.8 1.8 0 0 0-3.4 0z"/></svg>
+            </span>
+            <span class="scr-badge">Complication</span>
+            <h2 class="section-title">2. Identifikasi Anomali Cuaca Ekstrem &amp; Pergeseran Bulan Kering</h2>
+        </div>
+
+        <div class="content-layout">
+            <div class="narasi-column">
+                <h3>Why It Matters</h3>
+                <p>Anomali iklim yang tidak terdeteksi sejak dini berpotensi memicu kegagalan sektor pertanian dan logistik secara masal, serta meningkatkan risiko bencana hidrometeorologi akut.</p>
+                <p><strong>Highlight Temuan:</strong></p>
+                <ul>
+                    <li><em>Heatmap matriks bulan–tahun</em> memperlihatkan klaster curah hujan yang sangat pekat pada bulan tertentu, mengindikasikan potensi akumulasi presipitasi penyebab banjir.</li>
+                    <li><em>Scatter plot</em> suhu maksimum vs. curah hujan menunjukkan pola: saat suhu bergeser makin panas, titik data menempel di curah hujan mendekati nol (kemarau ekstrem).</li>
+                </ul>
+            </div>
+            <div class="visual-column">
+                <div class="viz-toolbar">
+                    <span class="src-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                        Dashboard 2 — Tableau Public
+                    </span>
+                    <!-- TODO: ganti href dengan tautan profil Tableau Public asli -->
+                    <a class="viz-link" href="#" target="_blank" rel="noopener">Buka layar penuh ↗</a>
+                </div>
+                <div class="tableau-wrapper">
+                    <div class='tableauPlaceholder' id='viz_dash2' style='position: relative; width: 100%;'><noscript><a href='#'><img alt='Dashboard 2 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard2&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz' style='display:none; width: 100%;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard2' /><param name='tabs' value='yes' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard2&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /></object></div><script type='text/javascript'>var divElement = document.getElementById('viz_dash2'); var vizElement = divElement.getElementsByTagName('object')[0]; vizElement.style.width='100%'; vizElement.style.minHeight='650px'; var scriptElement = document.createElement('script'); scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js'; vizElement.parentNode.insertBefore(scriptElement, vizElement);</script>
+                </div>
+                <div class="panel-caption">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+                    Anotasi pada scatter plot menandai titik anomali: suhu menyentuh ekstrem 38°C tanpa curah hujan sama sekali.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 3: RESOLUTION -->
+    <section class="scr-section resolution" id="resolution">
+        <div class="section-head">
+            <span class="stage-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+            </span>
+            <span class="scr-badge">Resolution</span>
+            <h2 class="section-title">3. Strategi Mitigasi Sektoral Berdasarkan Parameter Prediksi Iklim</h2>
+        </div>
+
+        <div class="content-layout">
+            <div class="narasi-column">
+                <h3>Why It Matters</h3>
+                <p>Tindakan mitigasi preventif berbasis data (data-driven decision) sangat diperlukan guna menekan kerugian infrastruktur sipil dan mengamankan keselamatan publik dari dampak iklim ekstrem.</p>
+                <p><strong>Highlight Temuan:</strong></p>
+                <ul>
+                    <li>Penerapan jadwal pengosongan debit waduk secara berkala diprioritaskan menjelang klaster minggu dengan sinyal curah hujan tinggi hasil deteksi heatmap.</li>
+                    <li>Rekomendasi penyesuaian jadwal tanam komoditas sensitif dan jam kerja luar ruangan pada periode dengan durasi sinar matahari paling terik.</li>
+                </ul>
+            </div>
+            <div class="visual-column">
+                <div class="viz-toolbar">
+                    <span class="src-tag">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                        Dashboard 3 — Tableau Public
+                    </span>
+                    <!-- TODO: ganti href dengan tautan profil Tableau Public asli -->
+                    <a class="viz-link" href="#" target="_blank" rel="noopener">Buka layar penuh ↗</a>
+                </div>
+                <div class="tableau-wrapper">
+                    <div class='tableauPlaceholder' id='viz_dash3' style='position: relative; width: 100%;'><noscript><a href='#'><img alt='Dashboard 3 ' src='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard3&#47;1_rss.png' style='border: none' /></a></noscript><object class='tableauViz' style='display:none; width: 100%;'><param name='host_url' value='https%3A%2F%2Fpublic.tableau.com%2F' /> <param name='embed_code_version' value='3' /> <param name='site_root' value='' /><param name='name' value='EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard3' /><param name='tabs' value='yes' /><param name='toolbar' value='yes' /><param name='static_image' value='https:&#47;&#47;public.tableau.com&#47;static&#47;images&#47;EA&#47;EAS_Visualisasi_Data_Iklim_BMKG&#47;Dashboard3&#47;1.png' /> <param name='animate_transition' value='yes' /><param name='display_static_image' value='yes' /><param name='display_spinner' value='yes' /><param name='display_overlay' value='yes' /><param name='display_count' value='yes' /><param name='language' value='en-US' /></object></div><script type='text/javascript'>var divElement = document.getElementById('viz_dash3'); var vizElement = divElement.getElementsByTagName('object')[0]; vizElement.style.width='100%'; vizElement.style.minHeight='650px'; var scriptElement = document.createElement('script'); scriptElement.src = 'https://public.tableau.com/javascripts/api/viz_v1.js'; vizElement.parentNode.insertBefore(scriptElement, vizElement);</script>
+                </div>
+                <div class="panel-caption">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+                    Arahkan kursor ke setiap batang grafik untuk melihat detail tahun dan rata-rata durasi sinar matahari (tooltip interaktif).
+                </div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<footer>
+    <div class="footer-inner">
+        <div class="footer-col" style="flex: 1.4; min-width: 240px;">
+            <h4>Iklim Harian BMKG &middot; SCR</h4>
+            <p>Analisis visualisasi parameter iklim harian Indonesia (2015–2020) menggunakan framework Situation–Complication–Resolution untuk Evaluasi Akhir Semester mata kuliah Visualisasi Data.</p>
+        </div>
+        <div class="footer-col">
+            <h4>Dataset</h4>
+            <ul>
+                <li>Climate Data Daily IDN (Kaggle)</li>
+                <li>Sumber asli: portal BMKG</li>
+                <li>Periode terpakai: 2015–2020</li>
+            </ul>
+        </div>
+        <div class="footer-col">
+            <h4>Tautan</h4>
+            <div class="footer-links">
+                <!-- TODO: ganti href dengan tautan profil Tableau Public asli -->
+                <a href="#" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                    Tableau Public
+                </a>
+                <!-- TODO: ganti href dengan tautan repository GitHub asli -->
+                <a href="#" target="_blank" rel="noopener">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-4.3 1.4-4.3-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.2 4.2 0 0 0-.1-3.2s-1.1-.3-3.5 1.3a12 12 0 0 0-6.2 0C6.5 2.8 5.4 3.1 5.4 3.1a4.2 4.2 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.5c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg>
+                    Repositori GitHub
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <span>Eggy Fawas Ihsan (23082010080) &middot;  Adinda Rahmanda Putri (23082010067) </span>
+        <span>Data Visualisasi EAS</span>
+    </div>
+</footer>
+
+</body>
+</html>
